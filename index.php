@@ -1,5 +1,5 @@
 <?php
-declare(strict_types=1);
+//declare(strict_types=1);
 
 //==============Не редактировать
 final class DataBase
@@ -53,41 +53,68 @@ final class DataBase
 
 class DataBaseHelper
 {
-    public function connectAndFetch($id)
+    private static $instance;
+    private DataBase $dataBase;
+    public function __construct()
     {
-        $dataBase = new DataBase();
-        $dataBase->connect();
-        $result = $dataBase->fetch($id);
-        return $result;
+        $this->dataBase = new DataBase();
+        $this->dataBase->connect();
     }
-
-    public function connectAndInsert($id)
+    public static function getInstance():DataBaseHelper
     {
-        $dataBase = new DataBase();
-        $dataBase->connect();
-        $result = $dataBase->insert($id);
+        if (self::$instance === null) {
+            self::$instance = new DataBaseHelper();
+        }
+        return self::$instance;
+    }
+    public function fetch(int $id):string
+    {
+        return $this->doDatabaseOperation('fetch', $id);
+    }
+    public function insert(int $data):string
+    {
+        return $this->doDatabaseOperation('insert', $data);
+    }
+    public function batchInsert(array $dataArray):string
+    {
+        foreach ($dataArray as $key=>$value) {
+            settype($dataArray[$key], 'int');
+        }
+        return $this->doDatabaseOperation('batchInsert', $dataArray);
+    }
+    private function doDatabaseOperation(string $operation, $data):string
+    {
+        // reconnect and repeat operation on error
+        do {
+            try {
+                $result = $this->dataBase->{$operation}($data);
+                $connectionWorked = true;
+            } catch (Exception $e) {
+                if ($e->getMessage() == 'No connection') {
+                    $connectionWorked = false;
+                    $this->dataBase->connect();
+                }
+            }
+        } while($connectionWorked==false);
+
         return $result;
     }
 }
 
-function step1($dataToFetch)
+function step1(array $dataToFetch):void
 {
-    $dataBaseHelper = new DataBaseHelper();
-
-    for ($i = 1; $i < count($dataToFetch); $i++) {
-        print($dataBaseHelper->connectAndFetch($dataToFetch[$i]));
+    $dataBaseHelper = DataBaseHelper::getInstance();
+    foreach ($dataToFetch as $dataRow) {
+        print($dataBaseHelper->fetch($dataRow));
         print(PHP_EOL);
     }
 }
 
-function step2($dataToInsert)
+function step2(array $dataToInsert):void
 {
-    $dataBaseHelper = new DataBaseHelper();
-
-    for ($i = 0; $i <= count($dataToInsert); $i++) {
-        print($dataBaseHelper->connectAndInsert($dataToInsert[$i]));
-        print(PHP_EOL);
-    }
+    $dataBaseHelper = DataBaseHelper::getInstance();
+    print($dataBaseHelper->batchInsert($dataToInsert));
+    print(PHP_EOL);
 }
 
 //==============Не редактировать
